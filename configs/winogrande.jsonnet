@@ -1,15 +1,15 @@
 local CUDA_DEVICE = std.parseInt(std.extVar("CUDA_VISIBLE_DEVICES"));
 
 local LEARNING_RATE = 1.1235456034244052e-05;
-local BATCH_SIZE = 64;
-local NUM_EPOCHS = 20;
+local BATCH_SIZE = 8;
+local NUM_EPOCHS = 6;
 local SEED = 71789;
 
-local TASK = "WINOGRANDE";
-local DATA_DIR = "/home/swabhas/data/glue/" + TASK + "/xl/" + TASK;
-local FEATURES_CACHE_DIR = DATA_DIR + "/cache_" + SEED ;
+local TASK = "winogrande";
+local DATA_DIR = "/local1/alisaliu/cartography/data/glue/winogrande/xl/";
+local FEATURES_CACHE_DIR = DATA_DIR + "cache_" + SEED;
 
-local TEST = "/home/swabhas/data/glue/WINOGRANDE/wsc_superglue_trval_test.tsv";
+local TEST = "/local1/alisaliu/cartography/data/glue/winogrande/wsc_superglue_trval_test.tsv";
 
 {
    "data_dir": DATA_DIR,
@@ -22,6 +22,7 @@ local TEST = "/home/swabhas/data/glue/WINOGRANDE/wsc_superglue_trval_test.tsv";
    "features_cache_dir": FEATURES_CACHE_DIR,
    "per_gpu_train_batch_size": BATCH_SIZE,
    "per_gpu_eval_batch_size": BATCH_SIZE,
+   "gradient_accumulation_steps": 8,
    "do_train": true,
    "do_eval": true,
    "do_test": true,
