@@ -31,6 +31,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+ASCENDING_ORDER = {
+    'variability': False,
+    'confidence': True,
+    'threshold_closeness': False,
+    'forgetfulness': False,
+    'correctness': True
+}
+
 
 def compute_forgetfulness(correctness_trend: List[float]) -> int:
     """
@@ -69,17 +77,16 @@ def compute_train_dy_metrics(training_dynamics, args):
     based on it, for data map coorodinates.
     Computed metrics are: confidence, variability, correctness, forgetfulness, threshold_closeness---
     the last two being baselines from prior work
-    (Example Forgetting: https://arxiv.org/abs/1812.05159 and
-     Active Bias: https://arxiv.org/abs/1704.07433 respectively).
+    (Example Forgetting: https://arxiv.org/abs/1812.05159 and Active Bias: https://arxiv.org/abs/1704.07433 respectively).
     Returns:
     - DataFrame with these metrics.
     - DataFrame with more typical training evaluation metrics, such as accuracy / loss.
     """
     confidence_ = {}
     variability_ = {}
-    threshold_closeness_ = {}
     correctness_ = {}
     forgetfulness_ = {}
+    threshold_closeness_ = {}
 
     # Functions to be applied to the data.
     def variability_func(conf): return np.std(conf)
@@ -156,48 +163,29 @@ def compute_train_dy_metrics(training_dynamics, args):
     return df, df_train
 
 
-def consider_ascending_order(filtering_metric: str) -> bool:
-    """
-    Determine if the metric values' sorting order to get the most `valuable` examples for training.
-    """
-    if filtering_metric == "variability":
-        return False
-    elif filtering_metric == "confidence":
-        return True
-    elif filtering_metric == "threshold_closeness":
-        return False
-    elif filtering_metric == "forgetfulness":
-        return False
-    elif filtering_metric == "correctness":
-        return True
-    else:
-        raise NotImplementedError(
-            f"Filtering based on {filtering_metric} not implemented!")
-
-
 def write_filtered_data(args, train_dy_metrics):
     """
     Filter data based on the given metric, and write it in TSV format to train GLUE-style classifier.
     """
     # First save the args for filtering, to keep track of which model was used for filtering.
     argparse_dict = vars(args)
-    with open(os.path.join(args.filtering_output_dir, f"filtering_configs.json"), "w") as outfile:
+    with open(os.path.join(args.output_dir, f"filtering_configs.json"), "w") as outfile:
         outfile.write(json.dumps(
             argparse_dict, indent=4, sort_keys=True) + "\n")
 
-    # Determine whether to sort data in ascending order or not, based on the metric.
-    is_ascending = consider_ascending_order(args.metric)
-    if args.worst:
-        is_ascending = not is_ascending
+    # sort by selection
+    if args.metric == 'random':
+        sorted_scores = train_dy_metrics.sample(frac=1, random_state=args.seed)
+    else:
+        # determine whether to sort data in ascending order or not, based on the metric
+        is_ascending = ASCENDING_ORDER[args.metric]
+        if args.worst:
+            is_ascending = not is_ascending
+        sorted_scores = train_dy_metrics.sort_values(by=[args.metric],
+                                                    ascending=is_ascending)
 
-    # Sort by selection.
-    sorted_scores = train_dy_metrics.sort_values(by=[args.metric],
-                                                 ascending=is_ascending)
-
-    original_train_file = os.path.join(os.path.join(
-        args.data_dir, args.task_name), f"train.tsv")
-    train_numeric, header = read_data(
-        original_train_file, task_name=args.task_name, guid_as_int=True)
+    original_train_file = os.path.join(os.path.join(args.data_dir, args.task_name), f"train.tsv")
+    train_numeric, header = read_data(original_train_file, task_name=args.task_name, guid_as_int=True)
 
     if args.fraction and 0 < args.fraction < 1:
         fractions = [args.fraction]
@@ -205,7 +193,7 @@ def write_filtered_data(args, train_dy_metrics):
         fractions = [0.01, 0.05, 0.10, 0.1667, 0.25, 0.33, 0.50, 0.75]
 
     for fraction in fractions:
-        outdir = os.path.join(args.filtering_output_dir,
+        outdir = os.path.join(args.output_dir,
                               f"cartography_{args.metric}_{fraction:.2f}/{args.task_name}")
         if not os.path.exists(outdir):
             os.makedirs(outdir)
@@ -230,8 +218,11 @@ def write_filtered_data(args, train_dy_metrics):
 
             selection_iterator = tqdm.tqdm(range(len(selected)))
             for idx in selection_iterator:
-                selection_iterator.set_description(
-                    f"{args.metric} = {selected.iloc[idx][args.metric]:.4f}")
+                if args.metric == 'random':
+                    selection_iterator.set_description('Random')
+                else:
+                    selection_iterator.set_description(
+                        f"{args.metric} = {selected.iloc[idx][args.metric]:.4f}")
 
                 selected_id = selected.iloc[idx]["guid"]
                 if args.task_name in ["SNLI", "MNLI"]:
@@ -250,7 +241,7 @@ def plot_data_map(dataframe: pd.DataFrame,
                   task_name: str = '',
                   plot_title: str = None,
                   show_hist: bool = False,
-                  max_instances_to_plot=25000):
+                  max_instances_to_plot: int = 25000):
     # Set style.
     sns.set(style='whitegrid', font_scale=1.6, context='paper')
     logger.info(f"Plotting figure for {task_name} ...")
@@ -278,8 +269,6 @@ def plot_data_map(dataframe: pd.DataFrame,
         gs = fig.add_gridspec(3, 2, width_ratios=[5, 1])
         ax0 = fig.add_subplot(gs[:, 0])
 
-    # Make the scatterplot.
-    # Choose a palette.
     pal = sns.diverging_palette(260, 15, n=num_hues, sep=10, center="dark")
 
     plot = sns.scatterplot(x=main_metric,
@@ -384,8 +373,13 @@ if __name__ == "__main__":
                                  'confidence',
                                  'variability',
                                  'correctness',
-                                 'forgetfulness'),
+                                 'forgetfulness',
+                                 'random'),
                         help="Metric to filter data by.",)
+    parser.add_argument("--seed",
+                        type=int,
+                        default=725862,
+                        help="Random seed for sampling.")
     parser.add_argument('--fraction',
                         type=float,
                         help="Number between 0 and 1, indicating fraction of random samples to select.")
@@ -426,9 +420,9 @@ if __name__ == "__main__":
         train_dy_metrics = pd.read_json(train_dy_filename, lines=True)
 
     if args.filter:
-        assert args.filtering_output_dir
-        if not os.path.exists(args.filtering_output_dir):
-            os.makedirs(args.filtering_output_dir)
+        assert args.output_dir
+        if not os.path.exists(args.output_dir):
+            os.makedirs(args.output_dir)
         assert args.metric
         write_filtered_data(args, train_dy_metrics)
 
