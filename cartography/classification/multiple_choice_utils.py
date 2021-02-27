@@ -9,7 +9,7 @@ from typing import List
 from transformers import PreTrainedTokenizer
 
 logging.basicConfig(
-  format="%(asctime)s - %(levelname)s - %(name)s - %(message)s", level=logging.INFO
+    format="%(asctime)s - %(levelname)s - %(name)s - %(message)s", level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,8 @@ class MCInputFeatures(object):
     def __init__(self, example_id, choices_features, label):
         self.example_id = example_id
         self.choices_features = [
-            {"input_ids": input_ids, "input_mask": input_mask, "segment_ids": segment_ids}
+            {"input_ids": input_ids, "input_mask": input_mask,
+                "segment_ids": segment_ids}
             for input_ids, input_mask, segment_ids in choices_features
         ]
         self.label = label
@@ -64,7 +65,8 @@ def convert_mc_examples_to_features(
     features = []
     for (ex_index, example) in tqdm.tqdm(enumerate(examples), desc="converting MC examples to features"):
         if ex_index % 10000 == 0:
-            logger.info(" Writing example %d of %d" % (ex_index, len(examples)))
+            logger.info(" Writing example %d of %d" %
+                        (ex_index, len(examples)))
         choices_features = []
         for ending_idx, (context, ending) in enumerate(zip(example.contexts, example.endings)):
             text_a = context
@@ -88,23 +90,29 @@ def convert_mc_examples_to_features(
 
             # The mask has 1 for real tokens and 0 for padding tokens. Only real
             # tokens are attended to.
-            attention_mask = [1 if mask_padding_with_zero else 0] * len(input_ids)
+            attention_mask = [
+                1 if mask_padding_with_zero else 0] * len(input_ids)
 
             # Zero-pad up to the sequence length.
             padding_length = max_length - len(input_ids)
             if pad_on_left:
                 input_ids = ([pad_token] * padding_length) + input_ids
-                attention_mask = ([0 if mask_padding_with_zero else 1] * padding_length) + attention_mask
-                token_type_ids = ([pad_token_segment_id] * padding_length) + token_type_ids
+                attention_mask = (
+                    [0 if mask_padding_with_zero else 1] * padding_length) + attention_mask
+                token_type_ids = ([pad_token_segment_id] *
+                                  padding_length) + token_type_ids
             else:
                 input_ids = input_ids + ([pad_token] * padding_length)
-                attention_mask = attention_mask + ([0 if mask_padding_with_zero else 1] * padding_length)
-                token_type_ids = token_type_ids + ([pad_token_segment_id] * padding_length)
+                attention_mask = attention_mask + \
+                    ([0 if mask_padding_with_zero else 1] * padding_length)
+                token_type_ids = token_type_ids + \
+                    ([pad_token_segment_id] * padding_length)
 
             assert len(input_ids) == max_length
             assert len(attention_mask) == max_length
             assert len(token_type_ids) == max_length
-            choices_features.append((input_ids, attention_mask, token_type_ids))
+            choices_features.append(
+                (input_ids, attention_mask, token_type_ids))
 
         label = label_map[example.label]
 
@@ -113,10 +121,14 @@ def convert_mc_examples_to_features(
             logger.info("winogrande_id: {}".format(example.example_id))
             logger.info("winogrande_context: {}".format(example.contexts[0]))
             for choice_idx, (input_ids, attention_mask, token_type_ids) in enumerate(choices_features):
-                logger.info(f"choice {choice_idx}: {example.endings[choice_idx]}")
-                logger.info("input_ids: {}".format(" ".join(map(str, input_ids))))
-                logger.info("attention_mask: {}".format(" ".join(map(str, attention_mask))))
-                logger.info("token_type_ids: {}".format(" ".join(map(str, token_type_ids))))
+                logger.info(
+                    f"choice {choice_idx}: {example.endings[choice_idx]}")
+                logger.info("input_ids: {}".format(
+                    " ".join(map(str, input_ids))))
+                logger.info("attention_mask: {}".format(
+                    " ".join(map(str, attention_mask))))
+                logger.info("token_type_ids: {}".format(
+                    " ".join(map(str, token_type_ids))))
                 logger.info(f"label: {label == choice_idx}")
 
         features.append(MCInputFeatures(example_id=example.example_id,

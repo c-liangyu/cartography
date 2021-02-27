@@ -1,3 +1,8 @@
+from cartography.classification.winogrande_utils import WinograndeProcessor
+from cartography.classification.snli_utils import SNLIProcessor
+from cartography.classification.qnli_utils import AdaptedQnliProcessor
+from cartography.classification.mnli_utils import AdaptedMnliMismatchedProcessor, AdaptedMnliProcessor
+from cartography.data_utils_glue import convert_string_to_unique_number
 import logging
 import os
 
@@ -13,15 +18,9 @@ if is_tf_available():
     import tensorflow as tf
 
 logging.basicConfig(
-  format="%(asctime)s - %(levelname)s - %(name)s - %(message)s", level=logging.INFO
+    format="%(asctime)s - %(levelname)s - %(name)s - %(message)s", level=logging.INFO
 )
 logger = logging.getLogger(__name__)
-
-from cartography.data_utils_glue import convert_string_to_unique_number
-from cartography.classification.mnli_utils import AdaptedMnliMismatchedProcessor, AdaptedMnliProcessor
-from cartography.classification.qnli_utils import AdaptedQnliProcessor
-from cartography.classification.snli_utils import SNLIProcessor
-from cartography.classification.winogrande_utils import WinograndeProcessor
 
 
 glue_processors["snli"] = SNLIProcessor
@@ -41,7 +40,6 @@ class AdaptedInputFeatures(InputFeatures):
         self.token_type_ids = token_type_ids
         self.label = label
         self.example_id = example_id
-
 
 
 def adapted_glue_convert_examples_to_features(
@@ -91,7 +89,8 @@ def adapted_glue_convert_examples_to_features(
             logger.info("Using label list %s for task %s" % (label_list, task))
         if output_mode is None:
             output_mode = glue_output_modes[task]
-            logger.info("Using output mode %s for task %s" % (output_mode, task))
+            logger.info("Using output mode %s for task %s" %
+                        (output_mode, task))
 
     label_map = {label: i for i, label in enumerate(label_list)}
 
@@ -107,7 +106,8 @@ def adapted_glue_convert_examples_to_features(
         if ex_index % 10000 == 0:
             logger.info("Writing example %d/%d" % (ex_index, len_examples))
 
-        inputs = tokenizer.encode_plus(example.text_a, example.text_b, add_special_tokens=True, max_length=max_length,)
+        inputs = tokenizer.encode_plus(
+            example.text_a, example.text_b, add_special_tokens=True, max_length=max_length,)
         input_ids, token_type_ids = inputs["input_ids"], inputs["token_type_ids"]
 
         # The mask has 1 for real tokens and 0 for padding tokens. Only real
@@ -118,14 +118,19 @@ def adapted_glue_convert_examples_to_features(
         padding_length = max_length - len(input_ids)
         if pad_on_left:
             input_ids = ([pad_token] * padding_length) + input_ids
-            attention_mask = ([0 if mask_padding_with_zero else 1] * padding_length) + attention_mask
-            token_type_ids = ([pad_token_segment_id] * padding_length) + token_type_ids
+            attention_mask = ([0 if mask_padding_with_zero else 1]
+                              * padding_length) + attention_mask
+            token_type_ids = ([pad_token_segment_id] *
+                              padding_length) + token_type_ids
         else:
             input_ids = input_ids + ([pad_token] * padding_length)
-            attention_mask = attention_mask + ([0 if mask_padding_with_zero else 1] * padding_length)
-            token_type_ids = token_type_ids + ([pad_token_segment_id] * padding_length)
+            attention_mask = attention_mask + \
+                ([0 if mask_padding_with_zero else 1] * padding_length)
+            token_type_ids = token_type_ids + \
+                ([pad_token_segment_id] * padding_length)
 
-        assert len(input_ids) == max_length, "Error with input length {} vs {}".format(len(input_ids), max_length)
+        assert len(input_ids) == max_length, "Error with input length {} vs {}".format(
+            len(input_ids), max_length)
         assert len(attention_mask) == max_length, "Error with input length {} vs {}".format(
             len(attention_mask), max_length
         )
@@ -144,9 +149,12 @@ def adapted_glue_convert_examples_to_features(
         if ex_index < 5:
             logger.info("*** Example ***")
             logger.info(f"guid: {example_int_id}")
-            logger.info("input_ids: %s" % " ".join([str(x) for x in input_ids]))
-            logger.info("attention_mask: %s" % " ".join([str(x) for x in attention_mask]))
-            logger.info("token_type_ids: %s" % " ".join([str(x) for x in token_type_ids]))
+            logger.info("input_ids: %s" %
+                        " ".join([str(x) for x in input_ids]))
+            logger.info("attention_mask: %s" %
+                        " ".join([str(x) for x in attention_mask]))
+            logger.info("token_type_ids: %s" %
+                        " ".join([str(x) for x in token_type_ids]))
             logger.info("label: %s (id = %d)" % (example.label, label))
 
         features.append(
@@ -171,7 +179,8 @@ def adapted_glue_convert_examples_to_features(
 
         return tf.data.Dataset.from_generator(
             gen,
-            ({"input_ids": tf.int32, "attention_mask": tf.int32, "token_type_ids": tf.int32}, tf.int64),
+            ({"input_ids": tf.int32, "attention_mask": tf.int32,
+              "token_type_ids": tf.int32}, tf.int64),
             (
                 {
                     "input_ids": tf.TensorShape([None]),
@@ -188,10 +197,9 @@ def adapted_glue_convert_examples_to_features(
 def adapted_glue_compute_metrics(task_name, preds, labels):
     "Adapted from `glue_compute_metrics` to also handle SNLI."
     try:
-      return glue_compute_metrics(task_name, preds, labels)
+        return glue_compute_metrics(task_name, preds, labels)
     except KeyError:
-      if task_name in ["snli", "winogrande", "toxic"]:
-        # Since MNLI also uses accuracy.
-        return glue_compute_metrics("mnli", preds, labels)
+        if task_name in ["snli", "winogrande", "toxic"]:
+            # Since MNLI also uses accuracy.
+            return glue_compute_metrics("mnli", preds, labels)
     raise KeyError(task_name)
-

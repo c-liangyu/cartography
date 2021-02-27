@@ -10,7 +10,6 @@ class AdaptedRobertaForSequenceClassification(RobertaForSequenceClassification):
     def __init__(self, config):
         super().__init__(config)
 
-
     def forward(
         self,
         input_ids=None,
@@ -70,7 +69,8 @@ class AdaptedRobertaForSequenceClassification(RobertaForSequenceClassification):
         sequence_output = outputs[0]
         logits = self.classifier(sequence_output)
 
-        outputs = (logits,) + outputs  # Modified from original `Transformers` since we need sequence output to summarize.
+        # Modified from original `Transformers` since we need sequence output to summarize.
+        outputs = (logits,) + outputs
         if labels is not None:
             if self.num_labels == 1:
                 #  We are doing regression
@@ -78,10 +78,12 @@ class AdaptedRobertaForSequenceClassification(RobertaForSequenceClassification):
                 loss = loss_fct(logits.view(-1), labels.view(-1))
             else:
                 loss_fct = CrossEntropyLoss()
-                loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
+                loss = loss_fct(
+                    logits.view(-1, self.num_labels), labels.view(-1))
             outputs = (loss,) + outputs
 
-        return outputs  # (loss), logits, sequence_output, pooled_sequence_output, (hidden_states), (attentions)
+        # (loss), logits, sequence_output, pooled_sequence_output, (hidden_states), (attentions)
+        return outputs
 
 
 class AdaptedRobertaForMultipleChoice(RobertaForMultipleChoice):
@@ -141,9 +143,12 @@ class AdaptedRobertaForMultipleChoice(RobertaForMultipleChoice):
         num_choices = input_ids.shape[1]
 
         flat_input_ids = input_ids.view(-1, input_ids.size(-1))
-        flat_position_ids = position_ids.view(-1, position_ids.size(-1)) if position_ids is not None else None
-        flat_token_type_ids = token_type_ids.view(-1, token_type_ids.size(-1)) if token_type_ids is not None else None
-        flat_attention_mask = attention_mask.view(-1, attention_mask.size(-1)) if attention_mask is not None else None
+        flat_position_ids = position_ids.view(
+            -1, position_ids.size(-1)) if position_ids is not None else None
+        flat_token_type_ids = token_type_ids.view(
+            -1, token_type_ids.size(-1)) if token_type_ids is not None else None
+        flat_attention_mask = attention_mask.view(
+            -1, attention_mask.size(-1)) if attention_mask is not None else None
         outputs = self.roberta(
             flat_input_ids,
             position_ids=flat_position_ids,
@@ -157,20 +162,21 @@ class AdaptedRobertaForMultipleChoice(RobertaForMultipleChoice):
         logits = self.classifier(pooled_output)
         reshaped_logits = logits.view(-1, num_choices)
 
-        outputs = (reshaped_logits,) + outputs  # Modified from original `Transformers` since we need logits.
+        # Modified from original `Transformers` since we need logits.
+        outputs = (reshaped_logits,) + outputs
 
         if labels is not None:
             loss_fct = CrossEntropyLoss()
             loss = loss_fct(reshaped_logits, labels)
             outputs = (loss,) + outputs
 
-        return outputs  # (loss), reshaped_logits, (hidden_states), (attentions)
+        # (loss), reshaped_logits, (hidden_states), (attentions)
+        return outputs
 
 
 class AdaptedBertForMultipleChoice(BertForMultipleChoice):
     def __init__(self, config):
         super().__init__(config)
-
 
     def forward(
         self,
@@ -227,9 +233,12 @@ class AdaptedBertForMultipleChoice(BertForMultipleChoice):
         num_choices = input_ids.shape[1]
 
         input_ids = input_ids.view(-1, input_ids.size(-1))
-        attention_mask = attention_mask.view(-1, attention_mask.size(-1)) if attention_mask is not None else None
-        token_type_ids = token_type_ids.view(-1, token_type_ids.size(-1)) if token_type_ids is not None else None
-        position_ids = position_ids.view(-1, position_ids.size(-1)) if position_ids is not None else None
+        attention_mask = attention_mask.view(
+            -1, attention_mask.size(-1)) if attention_mask is not None else None
+        token_type_ids = token_type_ids.view(
+            -1, token_type_ids.size(-1)) if token_type_ids is not None else None
+        position_ids = position_ids.view(-1, position_ids.size(-1)
+                                         ) if position_ids is not None else None
 
         outputs = self.bert(
             input_ids,
@@ -246,14 +255,16 @@ class AdaptedBertForMultipleChoice(BertForMultipleChoice):
         logits = self.classifier(pooled_output)
         reshaped_logits = logits.view(-1, num_choices)
 
-        outputs = (reshaped_logits,) + outputs  # Modified from original `Transformers` since we need logits.
+        # Modified from original `Transformers` since we need logits.
+        outputs = (reshaped_logits,) + outputs
 
         if labels is not None:
             loss_fct = CrossEntropyLoss()
             loss = loss_fct(reshaped_logits, labels)
             outputs = (loss,) + outputs
 
-        return outputs  # (loss), reshaped_logits, (hidden_states), (attentions)
+        # (loss), reshaped_logits, (hidden_states), (attentions)
+        return outputs
 
 
 class AdaptedBertForSequenceClassification(BertForSequenceClassification):
@@ -325,7 +336,8 @@ class AdaptedBertForSequenceClassification(BertForSequenceClassification):
         pooled_output = self.dropout(pooled_output)
         logits = self.classifier(pooled_output)
 
-        outputs = (logits,) + outputs  #[2:]  # add hidden states and attention if they are here
+        # [2:]  # add hidden states and attention if they are here
+        outputs = (logits,) + outputs
 
         if labels is not None:
             if self.num_labels == 1:
@@ -334,7 +346,8 @@ class AdaptedBertForSequenceClassification(BertForSequenceClassification):
                 loss = loss_fct(logits.view(-1), labels.view(-1))
             else:
                 loss_fct = CrossEntropyLoss()
-                loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
+                loss = loss_fct(
+                    logits.view(-1, self.num_labels), labels.view(-1))
             outputs = (loss,) + outputs
 
         return outputs  # (loss), logits, (hidden_states), (attentions)
