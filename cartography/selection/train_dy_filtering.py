@@ -93,12 +93,7 @@ def compute_train_dy_metrics(training_dynamics, args):
     loss = torch.nn.CrossEntropyLoss()
 
     num_tot_epochs = len(list(training_dynamics.values())[0]["logits"])
-    if args.burn_out < num_tot_epochs:
-        logger.info(
-            f"Computing training dynamics. Burning out at {args.burn_out} of {num_tot_epochs}. ")
-    else:
-        logger.info(
-            f"Computing training dynamics across {num_tot_epochs} epochs")
+    logger.info(f"Computing training dynamics across {num_tot_epochs} epochs")
     logger.info(
         "Metrics computed: confidence, variability, correctness, forgetfulness, threshold_closeness")
 
@@ -124,10 +119,6 @@ def compute_train_dy_metrics(training_dynamics, args):
             training_accuracy[i] += is_correct
             logits[i].append(epoch_logits)
             targets[i].append(record["gold"])
-
-        if args.burn_out < num_tot_epochs:
-            correctness_trend = correctness_trend[:args.burn_out]
-            true_probs_trend = true_probs_trend[:args.burn_out]
 
         correctness_[guid] = compute_correctness(correctness_trend)
         confidence_[guid] = np.mean(true_probs_trend)
@@ -413,29 +404,26 @@ if __name__ == "__main__":
     parser.add_argument("--both_ends",
                         action="store_true",
                         help="Select from both ends of the spectrum acc. to metric,")
-    parser.add_argument("--burn_out",
-                        type=int,
-                        default=100,
-                        help="# Epochs for which to compute train dynamics.")
+    parser.add_argument("--overwrite_train_dy",
+                        action="store_true",
+                        help="Whether to overwrite previously computed training dynamics")
 
     args = parser.parse_args()
+    train_dy_filename = os.path.join(args.model_dir, "td_metrics.jsonl")
 
-    training_dynamics = read_training_dynamics(args.model_dir,
-                                               burn_out=args.burn_out if args.burn_out < 100 else None)
-    total_epochs = len(list(training_dynamics.values())[0]["logits"])
-    if args.burn_out > total_epochs:
-        args.burn_out = total_epochs
-        logger.info(f"Total epochs found: {args.burn_out}")
-    train_dy_metrics, _ = compute_train_dy_metrics(training_dynamics, args)
+    if args.overwrite_train_dy or not os.path.exists(train_dy_filename):
+        training_dynamics = read_training_dynamics(args.model_dir)
+        train_dy_metrics, _ = compute_train_dy_metrics(training_dynamics, args)
 
-    burn_out_str = f"_{args.burn_out}" if args.burn_out > total_epochs else ""
-    train_dy_filename = os.path.join(
-        args.model_dir, f"td_metrics{burn_out_str}.jsonl")
-    train_dy_metrics.to_json(train_dy_filename,
-                             orient='records',
-                             lines=True)
-    logger.info(
-        f"Metrics based on Training Dynamics written to {train_dy_filename}")
+        train_dy_filename = os.path.join(args.model_dir, "td_metrics.jsonl")
+        train_dy_metrics.to_json(train_dy_filename,
+                                orient='records',
+                                lines=True)
+        logger.info(
+            f"Metrics based on training dynamics written to {train_dy_filename}")
+    else:
+        logger.info(f"Read metrics based on training dynamics from {train_dy_filename}")
+        train_dy_metrics = pd.read_json(train_dy_filename, lines=True)
 
     if args.filter:
         assert args.filtering_output_dir
