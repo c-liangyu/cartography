@@ -176,6 +176,59 @@ def write_filtered_data(args, train_dy_metrics):
     # sort by selection
     if args.metric == 'random':
         sorted_scores = train_dy_metrics.sample(frac=1, random_state=args.seed)
+    elif args.metric == 'mixed':
+        is_ascending = ASCENDING_ORDER['variability']
+        if args.worst:
+            is_ascending = not is_ascending
+        sorted_ambi_scores = train_dy_metrics.sort_values(by=[args.metric],
+                                                    ascending=is_ascending)
+
+        is_ascending = not ASCENDING_ORDER['confidence']
+        sorted_easy_scores = train_dy_metrics.sort_values(by=[args.metric],
+                                                    ascending=is_ascending)
+
+        original_train_file = os.path.join(os.path.join(args.data_dir, args.task_name), f"train.tsv")
+        train_numeric, header = read_data(original_train_file, task_name=args.task_name, guid_as_int=True)
+
+        # only one fraction
+        if not args.fraction:
+            args.fraction = 0.10
+        fractions_replace = [0.1, 0.2, 0.25, 0.33, 0.5]
+        for fraction_replace in fractions_replace:
+            outdir = os.path.join(args.output_dir,
+                              f"cartography_{args.metric}_{fraction_replace:.2f}/{args.task_name}")
+            if not os.path.exists(outdir):
+                os.makedirs(outdir)
+
+            # Dev and test need not be subsampled.
+            copy_dev_test(args.task_name,
+                      from_dir=os.path.join(args.data_dir, args.task_name),
+                      to_dir=outdir)
+
+            num_easy_samples = int(args.fraction * fractions_replace * len(train_numeric))
+            num_ambi_samples = int(args.fraction * len(train_numeric)) - num_easy_samples
+
+            with open(os.path.join(outdir, f"train.tsv"), "w") as outfile:
+                outfile.write(header + "\n")
+                selected = sorted_easy_scores.head(n=num_easy_samples+1) + sorted_ambi_scores.head(n=num_ambi_samples+1)
+                selection_iterator = tqdm.tqdm(range(len(selected)))
+                for idx in selection_iterator:
+                    if args.metric == 'random':
+                        selection_iterator.set_description('Random')
+                    else:
+                        selection_iterator.set_description(
+                            f"{args.metric} = {selected.iloc[idx][args.metric]:.4f}")
+
+                    selected_id = selected.iloc[idx]["guid"]
+                    if args.task_name in ["SNLI", "MNLI"]:
+                        selected_id = int(selected_id)
+                    elif args.task_name == "WINOGRANDE":
+                        selected_id = str(int(selected_id))
+                    record = train_numeric[selected_id]
+                    outfile.write(record + "\n")
+
+            logger.info(f"Wrote {num_samples} samples to {outdir}.")
+
     else:
         # determine whether to sort data in ascending order or not, based on the metric
         is_ascending = ASCENDING_ORDER[args.metric]
@@ -374,7 +427,8 @@ if __name__ == "__main__":
                                  'variability',
                                  'correctness',
                                  'forgetfulness',
-                                 'random'),
+                                 'random',
+                                 'mixed'),
                         help="Metric to filter data by.",)
     parser.add_argument("--seed",
                         type=int,
