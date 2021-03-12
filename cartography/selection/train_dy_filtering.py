@@ -180,11 +180,11 @@ def write_filtered_data(args, train_dy_metrics):
         is_ascending = ASCENDING_ORDER['variability']
         if args.worst:
             is_ascending = not is_ascending
-        sorted_ambi_scores = train_dy_metrics.sort_values(by=[args.metric],
+        sorted_ambi_scores = train_dy_metrics.sort_values(by=['variability'],
                                                     ascending=is_ascending)
 
         is_ascending = not ASCENDING_ORDER['confidence']
-        sorted_easy_scores = train_dy_metrics.sort_values(by=[args.metric],
+        sorted_easy_scores = train_dy_metrics.sort_values(by=['confidence'],
                                                     ascending=is_ascending)
 
         original_train_file = os.path.join(os.path.join(args.data_dir, args.task_name), f"train.tsv")
