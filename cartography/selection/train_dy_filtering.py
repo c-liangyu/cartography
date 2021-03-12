@@ -205,19 +205,16 @@ def write_filtered_data(args, train_dy_metrics):
                       from_dir=os.path.join(args.data_dir, args.task_name),
                       to_dir=outdir)
 
-            num_easy_samples = int(args.fraction * fractions_replace * len(train_numeric))
+            num_easy_samples = int(args.fraction * fraction_replace * len(train_numeric))
             num_ambi_samples = int(args.fraction * len(train_numeric)) - num_easy_samples
 
             with open(os.path.join(outdir, f"train.tsv"), "w") as outfile:
                 outfile.write(header + "\n")
-                selected = sorted_easy_scores.head(n=num_easy_samples+1) + sorted_ambi_scores.head(n=num_ambi_samples+1)
+                selected = sorted_easy_scores.head(n=num_easy_samples+1)
                 selection_iterator = tqdm.tqdm(range(len(selected)))
                 for idx in selection_iterator:
-                    if args.metric == 'random':
-                        selection_iterator.set_description('Random')
-                    else:
-                        selection_iterator.set_description(
-                            f"{args.metric} = {selected.iloc[idx][args.metric]:.4f}")
+                    selection_iterator.set_description(
+                        f"easy = {selected.iloc[idx]['confidence']:.4f}")
 
                     selected_id = selected.iloc[idx]["guid"]
                     if args.task_name in ["SNLI", "MNLI"]:
@@ -227,7 +224,23 @@ def write_filtered_data(args, train_dy_metrics):
                     record = train_numeric[selected_id]
                     outfile.write(record + "\n")
 
-            logger.info(f"Wrote {num_samples} samples to {outdir}.")
+
+                selected = sorted_ambi_scores.head(n=num_ambi_samples+1)
+                selection_iterator = tqdm.tqdm(range(len(selected)))
+                for idx in selection_iterator:
+                    selection_iterator.set_description(
+                        f"ambi = {selected.iloc[idx]['variability']:.4f}")
+
+                    selected_id = selected.iloc[idx]["guid"]
+                    if args.task_name in ["SNLI", "MNLI"]:
+                        selected_id = int(selected_id)
+                    elif args.task_name == "WINOGRANDE":
+                        selected_id = str(int(selected_id))
+                    record = train_numeric[selected_id]
+                    outfile.write(record + "\n")
+
+            logger.info(f"Wrote {num_easy_samples + num_ambi_samples} samples to {outdir}.")
+        return
 
     else:
         # determine whether to sort data in ascending order or not, based on the metric
