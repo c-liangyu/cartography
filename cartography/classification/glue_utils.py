@@ -53,6 +53,7 @@ def adapted_glue_convert_examples_to_features(
     pad_token=0,
     pad_token_segment_id=0,
     mask_padding_with_zero=True,
+    verbose=False,
 ):
     """
     Adapted from `transformers`. New functionality: also return an integer ID for each example.
@@ -71,7 +72,7 @@ def adapted_glue_convert_examples_to_features(
         mask_padding_with_zero: If set to ``True``, the attention mask will be filled by ``1`` for actual values
             and by ``0`` for padded values. If set to ``False``, inverts it (``1`` for padded values, ``0`` for
             actual values)
-
+        verbose: If set to ``True``, log the first 5 examples
     Returns:
         If the ``examples`` input is a ``tf.data.Dataset``, will return a ``tf.data.Dataset``
         containing the task-specific features. If the input is a list of ``InputExamples``, will return
@@ -146,7 +147,7 @@ def adapted_glue_convert_examples_to_features(
             raise KeyError(output_mode)
 
         example_int_id = convert_string_to_unique_number(example.guid)
-        if ex_index < 5:
+        if ex_index < 5 and verbose:
             logger.info("*** Example ***")
             logger.info(f"guid: {example_int_id}")
             logger.info("input_ids: %s" %
