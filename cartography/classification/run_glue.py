@@ -412,17 +412,21 @@ def save_model(args, model, tokenizer, epoch, best_epoch, best_dev_performance):
 
 def evaluate(args, model, tokenizer, prefix="", eval_split="dev", epoch=None):
     # We do not really need a loop to handle MNLI double evaluation (matched, mis-matched).
-    eval_task_names = (args.task_name,)
-    eval_outputs_dirs = (args.output_dir,)
+    if args.task_name == 'mnli':
+        eval_task_names = ('mnli', 'mnli-mm')
+        eval_splits = (f'{eval_split}_matched', f'{eval_split}_mismatched')
+    else:
+        eval_task_names = (args.task_name,)
+        eval_splits = (eval_split,)
 
     results = {}
     all_predictions = {}
-    for eval_task, eval_output_dir in zip(eval_task_names, eval_outputs_dirs):
+    for eval_task, eval_split in zip(eval_task_names, eval_splits):
         eval_dataset = load_and_cache_examples(
             args, eval_task, tokenizer, evaluate=True, data_split=f"{eval_split}_{prefix}")
 
-        if not os.path.exists(eval_output_dir) and args.local_rank in [-1, 0]:
-            os.makedirs(eval_output_dir)
+        if not os.path.exists(args.output_dir) and args.local_rank in [-1, 0]:
+            os.makedirs(args.output_dir)
 
         args.eval_batch_size = args.per_gpu_eval_batch_size * \
             max(1, args.n_gpu)
@@ -492,7 +496,7 @@ def evaluate(args, model, tokenizer, prefix="", eval_split="dev", epoch=None):
         results.update(result)
 
         output_eval_file = os.path.join(
-            eval_output_dir, f"eval_metrics_{eval_task}_{eval_split}_{prefix}.json")
+            args.output_dir, f"eval_metrics_{eval_task}_{eval_split}_{prefix}.json")
         logger.info(f"***** {eval_task} {eval_split} results {prefix} *****")
         for key in sorted(result.keys()):
             logger.info(
@@ -503,7 +507,7 @@ def evaluate(args, model, tokenizer, prefix="", eval_split="dev", epoch=None):
         # predictions
         all_predictions[eval_task] = []
         output_pred_file = os.path.join(
-            eval_output_dir, f"predictions_{eval_task}_{eval_split}_{prefix}.lst")
+            args.output_dir, f"predictions_{eval_task}_{eval_split}_{prefix}.lst")
         with open(output_pred_file, "w") as writer:
             logger.info(
                 f"***** Write {eval_task} {eval_split} predictions {prefix} *****")
