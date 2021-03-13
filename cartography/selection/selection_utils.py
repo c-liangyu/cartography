@@ -15,30 +15,30 @@ logger = logging.getLogger(__name__)
 
 def log_training_dynamics(output_dir: os.path,
                           epoch: int,
-                          train_ids: List[int],
-                          train_logits: List[List[float]],
-                          train_golds: List[int]):
+                          ids: List[int],
+                          logits: List[List[float]],
+                          golds: List[int],
+                          split: str = 'training'):
     """
     Save training dynamics (logits) from given epoch as records of a `.jsonl` file.
     """
-    td_df = pd.DataFrame({"guid": train_ids,
-                          f"logits_epoch_{epoch}": train_logits,
-                          "gold": train_golds})
+    td_df = pd.DataFrame({"guid": ids,
+                          f"logits_epoch_{epoch}": logits,
+                          "gold": golds})
 
-    logging_dir = os.path.join(output_dir, f"training_dynamics")
+    logging_dir = os.path.join(output_dir, f"{split}_dynamics")
     # Create directory for logging training dynamics, if it doesn't already exist.
     if not os.path.exists(logging_dir):
         os.makedirs(logging_dir)
-    epoch_file_name = os.path.join(
-        logging_dir, f"dynamics_epoch_{epoch}.jsonl")
+    epoch_file_name = os.path.join(logging_dir, f"dynamics_epoch_{epoch}.jsonl")
     td_df.to_json(epoch_file_name, lines=True, orient="records")
-    logger.info(f"Training Dynamics logged to {epoch_file_name}")
+    logger.info(f"{split.capitalize()} dynamics logged to {epoch_file_name}")
 
 
 def read_training_dynamics(model_dir: os.path,
                            strip_last: bool = False,
-                           id_field: str = "guid",
-                           burn_out: int = None):
+                           id_field: str = 'guid',
+                           split: str = 'training'):
     """
     Given path to logged training dynamics, merge stats across epochs.
     Returns:
@@ -46,11 +46,9 @@ def read_training_dynamics(model_dir: os.path,
     """
     train_dynamics = {}
 
-    td_dir = os.path.join(model_dir, "training_dynamics")
+    td_dir = os.path.join(model_dir, f"{split}_dynamics")
     num_epochs = len([f for f in os.listdir(td_dir)
                       if os.path.isfile(os.path.join(td_dir, f))])
-    if burn_out:
-        num_epochs = burn_out
 
     logger.info(f"Reading {num_epochs} files from {td_dir} ...")
     for epoch_num in tqdm.tqdm(range(num_epochs)):
