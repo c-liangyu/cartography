@@ -24,7 +24,6 @@ class Params:
 
         # Path to pre-trained model or shortcut name from `ALL_MODELS`.
         self.model_name_or_path: str = configs["model_name_or_path"]
-        assert self.model_name_or_path in ALL_MODELS
 
         # The name of the task to train.
         self.task_name: str = configs["task_name"]
