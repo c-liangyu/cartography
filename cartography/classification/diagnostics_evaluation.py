@@ -141,7 +141,7 @@ def evaluate_by_category(predictions,
     if not diagnostics_file_carto and not os.path.exists(diagnostics_file_carto):
         diag_test_modifier(diagnostics_file_original, diagnostics_file_carto)
 
-    diagnostics_orig, diag_headers = read_glue_tsv(diagnostics_file_carto)
+    diagnostics_orig, diag_headers = read_glue_tsv(diagnostics_file_carto, guid_index=0)
     diagnostics = {convert_string_to_unique_number(
         key): val for key, val in diagnostics_orig.items()}
 
