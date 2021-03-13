@@ -184,7 +184,7 @@ def train(args, train_dataset, model, tokenizer):
     steps_trained_in_this_epoch = 0
     # Check if continuing training from a checkpoint
     if os.path.exists(args.model_name_or_path):
-        # set global_step to gobal_step of last saved checkpoint from model path
+        # set global_step to global_step of last saved checkpoint from model path
         global_step = int(args.model_name_or_path.split("-")[-1].split("/")[0])
         epochs_trained = global_step // (len(train_dataloader) //
                                          args.gradient_accumulation_steps)
@@ -243,7 +243,8 @@ def train(args, train_dataset, model, tokenizer):
             # model outputs are always tuple in transformers (see doc)
             loss = outputs[0]
 
-            if train_logits is None:  # Keep track of training dynamics.
+            # keep track of training dynamics
+            if train_logits is None: 
                 train_ids = batch[4].detach().cpu().numpy()
                 train_logits = outputs[1].detach().cpu().numpy()
                 train_golds = inputs["labels"].detach().cpu().numpy()
@@ -333,7 +334,8 @@ def train(args, train_dataset, model, tokenizer):
                         output_dir, "scheduler.pt"))
                     logger.info(
                         "Saving optimizer and scheduler states to %s", output_dir)
-
+            
+            # update tqdm bar for next epoch
             epoch_iterator.set_description(f"lr = {scheduler.get_lr()[0]:.8f}, "
                                            f"loss = {(tr_loss-epoch_loss)/(step+1):.4f}")
             if args.max_steps > 0 and global_step > args.max_steps:
@@ -341,7 +343,8 @@ def train(args, train_dataset, model, tokenizer):
                 break
 
         #### Post epoch eval ####
-        # Only evaluate when single GPU otherwise metrics may not average well
+        # do evaluation here at the end of the epoch
+        # only evaluate when single GPU otherwise metrics may not average well
         if args.local_rank == -1 and args.evaluate_during_training:
             best_dev_performance, best_epoch = save_model(
                 args, model, tokenizer, epoch, best_epoch, best_dev_performance)
@@ -349,11 +352,11 @@ def train(args, train_dataset, model, tokenizer):
         # Keep track of training dynamics.
         log_training_dynamics(output_dir=args.output_dir,
                               epoch=epoch,
-                              train_ids=list(train_ids),
-                              train_logits=list(train_logits),
-                              train_golds=list(train_golds))
-        train_result = compute_metrics(
-            args.task_name, np.argmax(train_logits, axis=1), train_golds)
+                              ids=list(train_ids),
+                              logits=list(train_logits),
+                              golds=list(train_golds),
+                              split='training')
+        train_result = compute_metrics(args.task_name, np.argmax(train_logits, axis=1), train_golds)
         train_acc = train_result["acc"]
 
         epoch_log = {"epoch": epoch,
@@ -385,11 +388,12 @@ def train(args, train_dataset, model, tokenizer):
     return global_step, tr_loss / global_step
 
 
-def save_model(args, model, tokenizer, epoch, best_epoch,  best_dev_performance):
-    results, _ = evaluate(args, model, tokenizer, prefix="in_training")
+def save_model(args, model, tokenizer, epoch, best_epoch, best_dev_performance):
+    results, _ = evaluate(args, model, tokenizer, prefix="in_training", epoch=epoch)
     # TODO(SS): change hard coding `acc` as the desired metric, might not work for all tasks.
     desired_metric = "acc"
     dev_performance = results.get(desired_metric)
+    # replace best model if dev_performance of current epoch is better than best_dev_performance
     if dev_performance > best_dev_performance:
         best_epoch = epoch
         best_dev_performance = dev_performance
@@ -406,7 +410,7 @@ def save_model(args, model, tokenizer, epoch, best_epoch,  best_dev_performance)
     return best_dev_performance, best_epoch
 
 
-def evaluate(args, model, tokenizer, prefix="", eval_split="dev"):
+def evaluate(args, model, tokenizer, prefix="", eval_split="dev", epoch=None):
     # We do not really need a loop to handle MNLI double evaluation (matched, mis-matched).
     eval_task_names = (args.task_name,)
     eval_outputs_dirs = (args.output_dir,)
@@ -438,12 +442,11 @@ def evaluate(args, model, tokenizer, prefix="", eval_split="dev"):
         logger.info(f"  Batch size = {args.eval_batch_size}")
         eval_loss = 0.0
         nb_eval_steps = 0
-        preds = None
-        out_label_ids = None
 
-        example_ids = []
-        gold_labels = []
-
+        eval_ids = None
+        eval_golds = None
+        eval_logits = None
+        eval_losses = None
         for batch in tqdm(eval_dataloader, desc="Evaluating", mininterval=10, ncols=100):
             model.eval()
             batch = tuple(t.to(args.device) for t in batch)
@@ -459,28 +462,33 @@ def evaluate(args, model, tokenizer, prefix="", eval_split="dev"):
                 outputs = model(**inputs)
                 tmp_eval_loss, logits = outputs[:2]
 
-                eval_loss += tmp_eval_loss.mean().item()
-                example_ids += batch[4].tolist()
-                gold_labels += batch[3].tolist()
             nb_eval_steps += 1
-            if preds is None:
-                preds = logits.detach().cpu().numpy()
-                out_label_ids = inputs["labels"].detach().cpu().numpy()
+            if eval_logits is None:
+                eval_ids = batch[4].detach().cpu().numpy()
+                eval_logits = logits.detach().cpu().numpy()
+                eval_golds = inputs["labels"].detach().cpu().numpy()
+                eval_losses = tmp_eval_loss.detach().cpu().numpy()
             else:
-                preds = np.append(preds, logits.detach().cpu().numpy(), axis=0)
-                out_label_ids = np.append(
-                    out_label_ids, inputs["labels"].detach().cpu().numpy(), axis=0)
+                eval_ids = np.append(eval_ids, batch[4].detach().cpu().numpy())
+                eval_logits = np.append(eval_logits, logits.detach().cpu().numpy(), axis=0)
+                eval_golds = np.append(eval_golds, inputs["labels"].detach().cpu().numpy(), axis=0)
+                eval_losses = np.append(eval_losses, tmp_eval_loss.detach().cpu().numpy())
 
         eval_loss = eval_loss / nb_eval_steps
         if args.output_mode == "classification":
-            probs = torch.nn.functional.softmax(torch.Tensor(preds), dim=-1)
+            probs = torch.nn.functional.softmax(torch.Tensor(eval_logits), dim=-1)
             max_confidences = (torch.max(probs, dim=-1)[0]).tolist()
-            # Max of logit is the same as max of probability.
-            preds = np.argmax(preds, axis=1)
+            preds = np.argmax(eval_logits, axis=1)
         elif args.output_mode == "regression":
-            preds = np.squeeze(preds)
-
-        result = compute_metrics(eval_task, preds, out_label_ids)
+            preds = np.squeeze(eval_logits)
+        
+        log_training_dynamics(output_dir=args.output_dir,
+                              epoch=epoch,
+                              ids=list(eval_ids),
+                              logits=list(eval_logits),
+                              golds=list(eval_golds),
+                              split=eval_split)
+        result = compute_metrics(eval_task, preds, eval_golds)
         results.update(result)
 
         output_eval_file = os.path.join(
@@ -500,8 +508,8 @@ def evaluate(args, model, tokenizer, prefix="", eval_split="dev"):
             logger.info(
                 f"***** Write {eval_task} {eval_split} predictions {prefix} *****")
             for ex_id, pred, gold, max_conf, prob in zip(
-                    example_ids, preds, gold_labels, max_confidences, probs.tolist()):
-                record = {"guid": ex_id,
+                    eval_ids, preds, eval_golds, max_confidences, probs.tolist()):
+                record = {"guid": int(ex_id),
                           "label": processors[args.task_name]().get_labels()[pred],
                           "gold": processors[args.task_name]().get_labels()[gold],
                           "confidence": max_conf,
@@ -518,17 +526,17 @@ def load_dataset(args, task, eval_split="train"):
         if args.train is None:
             examples = processor.get_train_examples(args.data_dir)
         else:
-            examples = processor.get_examples(args.train, "train")
+            examples = processor.get_examples(os.path.join(args.data_dir, args.train), "train")
     elif "dev" in eval_split:
         if args.dev is None:
             examples = processor.get_dev_examples(args.data_dir)
         else:
-            examples = processor.get_examples(args.dev, "dev")
+            examples = processor.get_examples(os.path.join(args.data_dir, args.dev), "dev")
     elif "test" in eval_split:
         if args.test is None:
             examples = processor.get_test_examples(args.data_dir)
         else:
-            examples = processor.get_examples(args.test, "test")
+            examples = processor.get_examples(os.path.join(args.data_dir, args.test), "test")
     else:
         raise ValueError(
             f"eval_split should be train / dev / test, but was given {eval_split}")
@@ -645,24 +653,11 @@ def load_and_cache_examples(args, task, tokenizer, evaluate=False, data_split="t
 
 
 def run_transformer(args):
-    if (os.path.exists(args.output_dir)
-        and os.listdir(args.output_dir)
-        and args.do_train
-            and not args.overwrite_output_dir):
+    if (os.path.exists(args.output_dir) and os.listdir(args.output_dir)
+        and args.do_train and not args.overwrite_output_dir):
         raise ValueError(
             f"Output directory ({args.output_dir}) already exists and is not empty."
             f" Use --overwrite_output_dir to overcome.")
-
-    # Setup distant debugging if needed
-    if args.server_ip and args.server_port:
-        # Distant debugging - see
-        # https://code.visualstudio.com/docs/python/debugging#_attach-to-a-local-script
-        import ptvsd
-
-        logger.info("Waiting for debugger attach")
-        ptvsd.enable_attach(
-            address=(args.server_ip, args.server_port), redirect_output=True)
-        ptvsd.wait_for_attach()
 
     # Setup CUDA, GPU & distributed training
     if args.local_rank == -1 or args.no_cuda:
@@ -786,18 +781,18 @@ def run_transformer(args):
         checkpoints = [args.output_dir]
         if args.eval_all_checkpoints:
             checkpoints = list(
-                os.path.dirname(c) for c in sorted(
-                    glob.glob(args.output_dir + "/**/" + WEIGHTS_NAME, recursive=True))
+                int(os.path.dirname(c).split('-')[-1]) for c in 
+                    glob.glob(args.output_dir + "/checkpoint-*/" + WEIGHTS_NAME, recursive=True)
             )
-            logging.getLogger("transformers.modeling_utils").setLevel(
-                logging.WARN)  # Reduce logging
+            checkpoints = [os.path.join(args.output_dir, f'checkpoint-{c}') for c in sorted(checkpoints)]
+            # reduce logging
+            logging.getLogger("transformers.modeling_utils").setLevel(logging.WARN) 
         logger.info("Evaluate the following checkpoints: %s", checkpoints)
         results = {}
-        prefix = args.test.split("/")[-1].split(".tsv")[0] if args.test else ""
+        # hack: we know that we saved one checkpoint per epoch
         for checkpoint in checkpoints:
-            global_step = checkpoint.split(
-                "-")[-1] if len(checkpoints) > 1 else ""
-            prefix += checkpoint.split("/")[-1] if checkpoint.find(
+            global_step = checkpoint.split("-")[-1] if len(checkpoints) > 1 else ""
+            prefix = checkpoint.split("/")[-1] if checkpoint.find(
                 "checkpoint") != -1 else ""
 
             model = model_class.from_pretrained(checkpoint)
@@ -815,9 +810,8 @@ def run_transformer(args):
                 evaluate_by_category(predictions[args.task_name],
                                      mnli_hack=True if args.task_name in [
                                          "SNLI", "snli"] and "mnli" in args.output_dir else False,
-                                     eval_filename=os.path.join(
-                                         args.output_dir, f"eval_metrics_diagnostics.json"),
-                                     diagnostics_file_carto=args.test)
+                                     eval_filename=os.path.join(args.output_dir, f"eval_metrics_diagnostics.json"),
+                                     diagnostics_file_carto=os.path.join(args.data_dir, args.test))
     logger.info(" **** Done ****")
 
 
@@ -843,9 +837,9 @@ def main():
     parser.add_argument("--do_test",
                         action="store_true",
                         help="Whether to run eval on the (OOD) test set.")
-    parser.add_argument("--test",
-                        type=os.path.abspath,
-                        help="OOD test set.")
+    parser.add_argument("--train",
+                        type=str,
+                        help="Train data.")
 
     # TODO(SS): Automatically map tasks to OOD test sets.
 
