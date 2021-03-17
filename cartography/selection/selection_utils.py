@@ -67,5 +67,5 @@ def read_training_dynamics(model_dir: os.path,
                     record[f"logits_epoch_{epoch_num}"])
 
     logger.info(
-        f"Read training dynamics for {len(train_dynamics)} train instances.")
+        f"Read training dynamics for {len(train_dynamics)} {split} instances.")
     return train_dynamics
