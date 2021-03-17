@@ -40,6 +40,9 @@ from transformers import (
     BertTokenizer,
     RobertaConfig,
     RobertaTokenizer,
+    DistilBertModel, 
+    DistilBertConfig,
+    DistilBertTokenizer,
     get_linear_schedule_with_warmup,
 )
 
@@ -52,7 +55,8 @@ from cartography.classification.models import (
     AdaptedBertForMultipleChoice,
     AdaptedBertForSequenceClassification,
     AdaptedRobertaForMultipleChoice,
-    AdaptedRobertaForSequenceClassification
+    AdaptedRobertaForSequenceClassification,
+    AdaptedDistilBertForSequenceClassification
 )
 from cartography.classification.multiple_choice_utils import convert_mc_examples_to_features
 from cartography.classification.params import Params, save_args_to_file
@@ -74,6 +78,7 @@ ALL_MODELS = sum(
         for conf in (
             BertConfig,
             RobertaConfig,
+            DistilBertConfig
         )
     ),
     (),
@@ -82,6 +87,7 @@ ALL_MODELS = sum(
 MODEL_CLASSES = {
     "bert": (BertConfig, AdaptedBertForSequenceClassification, BertTokenizer),
     "bert_mc": (BertConfig, AdaptedBertForMultipleChoice, BertTokenizer),
+    "distilbert": (DistilBertConfig, AdaptedDistilBertForSequenceClassification, DistilBertTokenizer),
     "roberta": (RobertaConfig, AdaptedRobertaForSequenceClassification, RobertaTokenizer),
     "roberta_mc": (RobertaConfig, AdaptedRobertaForMultipleChoice, RobertaTokenizer),
 }
@@ -411,8 +417,8 @@ def save_model(args, model, tokenizer, epoch, best_epoch, best_dev_performance):
 
 
 def evaluate(args, model, tokenizer, prefix="", eval_split="dev", epoch=None):
-    # We do not really need a loop to handle MNLI double evaluation (matched, mis-matched).
-    if args.task_name == 'mnli':
+    # handle MNLI double evaluation (matched, mis-matched)
+    if args.task_name == 'mnli' and args.dev is None and eval_split == 'dev':
         eval_task_names = ('mnli', 'mnli-mm')
         eval_splits = (f'{eval_split}_matched', f'{eval_split}_mismatched')
     else:
@@ -793,6 +799,7 @@ def run_transformer(args):
             logging.getLogger("transformers.modeling_utils").setLevel(logging.WARN) 
         logger.info("Evaluate the following checkpoints: %s", checkpoints)
         results = {}
+
         # hack: we know that we saved one checkpoint per epoch
         for checkpoint in checkpoints:
             global_step = checkpoint.split("-")[-1] if len(checkpoints) > 1 else ""
@@ -844,6 +851,12 @@ def main():
     parser.add_argument("--train",
                         type=str,
                         help="Train data.")
+    parser.add_argument("--dev",
+                        type=str,
+                        help="Dev data.")
+    parser.add_argument("--test",
+                        type=str,
+                        help="Test data.")
 
     # TODO(SS): Automatically map tasks to OOD test sets.
 
