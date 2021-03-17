@@ -12,6 +12,7 @@ import json
 import logging
 import matplotlib.pyplot as plt
 import numpy as np
+import math
 import os
 import pandas as pd
 import seaborn as sns
@@ -318,7 +319,7 @@ def plot_data_map(dataframe: pd.DataFrame,
                   task_name: str = '',
                   plot_title: str = None,
                   show_hist: bool = False,
-                  max_instances_to_plot: int = 25000):
+                  max_instances_to_plot: int = 25000, show_bound : bool = False):
     # Set style.
     sns.set(style='whitegrid', font_scale=1.6, context='paper')
     logger.info(f"Plotting figure for {task_name} ...")
@@ -372,6 +373,11 @@ def plot_data_map(dataframe: pd.DataFrame,
     an1 = func_annotate("ambiguous", xyc=(0.9, 0.5), bbc='black')
     an2 = func_annotate("easy-to-learn", xyc=(0.27, 0.85), bbc='r')
     an3 = func_annotate("hard-to-learn", xyc=(0.35, 0.25), bbc='b')
+    if show_bound:
+        def bound(conf):
+            return math.sqrt(math.floor(5*conf)/5.0 + (math.floor(5*conf) - 5*conf)**2/5.0 - conf**2)
+        confs = list(np.arange(0, 1, 0.01))    
+        plt.plot([bound(conf) for conf in confs], confs, linewidth=2.0, label='x=f(y, 5)', color='black')
 
     if not show_hist:
         plot.legend(ncol=1, bbox_to_anchor=[0.175, 0.5], loc='right')
@@ -492,6 +498,10 @@ if __name__ == "__main__":
                         type=str,
                         default='training',
                         help="Dataset split whose training dynamics to read")
+    parser.add_argument("--bound",
+                        type=bool,
+                        default=False,
+                        help="Whether to draw the theoretical upper bound")
 
     args = parser.parse_args()
     train_dy_filename = os.path.join(args.model_dir, f"{args.split}_td_metrics.jsonl")
@@ -521,4 +531,4 @@ if __name__ == "__main__":
         if not os.path.exists(args.plots_dir):
             os.makedirs(args.plots_dir)
         plot_data_map(train_dy_metrics, args.plots_dir, task_name=args.task_name,
-                      show_hist=True, plot_title=args.plot_title)
+                      show_hist=True, plot_title=args.plot_title, show_bound = args.bound)
