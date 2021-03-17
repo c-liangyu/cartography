@@ -199,11 +199,10 @@ def write_mixed_data(args, train_dy_metrics):
 
     # only one fraction
     if not args.fraction:
-        args.fraction = 0.10
+        args.fraction = 0.05
     fractions_replace = [0.1, 0.2, 0.25, 0.33, 0.5]
     for fraction_replace in fractions_replace:
-        outdir = os.path.join(args.output_dir,
-                            f"cartography_{args.metric}_{fraction_replace:.2f}/{args.task_name}")
+        outdir = os.path.join(args.output_dir, f"cartography_{args.metric}_{fraction_replace:.2f}")
         if not os.path.exists(outdir):
             os.makedirs(outdir)
 
@@ -261,17 +260,22 @@ def write_filtered_data(args, train_dy_metrics):
     if args.n and args.n > 1:
         num_samples = [args.n]
     elif args.fraction and 0 < args.fraction < 1:
+        fractions = [args.fraction]
         num_samples = [int(args.fraction * len(train_numeric))]
     else:
         fractions = [0.01, 0.05, 0.10, 0.1667, 0.25, 0.33, 0.50, 0.75]
         num_samples = [int(f * len(train_numeric)) for f in fractions]
 
-    for n in num_samples:
-        outdir = args.output_dir
+    for i, n in enumerate(num_samples):
+        # name and create folder
+        if args.n:
+            outdir = os.path.join(args.output_dir, f"cartography_{args.metric}_{n}")
+        else:
+            outdir = os.path.join(args.output_dir, f"cartography_{args.metric}_{fractions[i]:.2f}")
         if not os.path.exists(outdir):
             os.makedirs(outdir)
 
-        # Dev and test need not be subsampled.
+        # dev and test need not be subsampled
         copy_dev_test(args.task_name,
                       from_dir=args.data_dir,
                       to_dir=outdir)
@@ -511,7 +515,6 @@ if __name__ == "__main__":
             write_mixed_data(args, train_dy_metrics)
         else:
             write_filtered_data(args, train_dy_metrics)
-
 
     if args.plot:
         assert args.plots_dir
