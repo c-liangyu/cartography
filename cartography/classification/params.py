@@ -56,8 +56,17 @@ class Params:
         self.cache_dir: str = configs.get("cache_dir", "")
 
         # Where to store the feature cache for the model.
-        self.features_cache_dir: str = configs.get("features_cache_dir",
-                                                   os.path.join(self.data_dir, f"cache_{self.seed}"))
+        if self.train:
+            features_cache_dir = os.path.join(
+                os.path.dirname(os.path.join(self.data_dir, self.train)), 
+                f"cache_{self.seed}")
+        elif self.test:
+            features_cache_dir = os.path.join(
+                os.path.dirname(os.path.join(self.data_dir, self.test)), 
+                f"cache_{self.seed}")
+        else:
+            features_cache_dir = os.path.join(self.data_dir, f"cache_{self.seed}")
+        self.features_cache_dir: str = configs.get("features_cache_dir", features_cache_dir)
 
         # The maximum total input sequence length after tokenization.
         # Sequences longer than this will be truncated,
