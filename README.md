@@ -1,6 +1,18 @@
 # Reproducing Dataset Cartography
 
+Create the conda environment with
 
+```
+conda env create -f environment.yml
+```
+
+and activate with
+
+```
+conda activate cartography
+```
+
+Download MNLI from [https://github.com/nyu-mll/GLUE-baselines](https://github.com/nyu-mll/GLUE-baselines) and NLI Diagnostics from [https://super.gluebenchmark.com/diagnostics](https://super.gluebenchmark.com/diagnostics). 
 
 
 ### Training RoBERTa on MNLI
