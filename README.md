@@ -1,5 +1,11 @@
 # Reproducing Dataset Cartography
 
+### Main Results
+
+![Datamap](MNLI.png)
+
+![Table](Table.png)
+
 ### Training RoBERTa on MNLI
 The first step to reproducing the paper is to finetune RoBERTa-large on the full MNLI dataset and obtain the corresponding data map.
 
