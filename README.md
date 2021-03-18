@@ -1,76 +1,74 @@
-# Dataset Cartography
+# Reproducing Dataset Cartography
 
-Code for the paper [Dataset Cartography: Mapping and Diagnosing Datasets with Training Dynamics](https://arxiv.org/abs/2009.10795) at EMNLP 2020.
+### Active learning experiment
 
-This repository contains implementation of data maps, as well as other data selection baselines, along with notebooks for data map visualizations.
-
-If using, please cite:
-```
-@inproceedings{swayamdipta2020dataset,
-    title={Dataset Cartography: Mapping and Diagnosing Datasets with Training Dynamics},
-    author={Swabha Swayamdipta and Roy Schwartz and Nicholas Lourie and Yizhong Wang and Hannaneh Hajishirzi and Noah A. Smith and Yejin Choi},
-    booktitle={Proceedings of EMNLP},
-    url={https://arxiv.org/abs/2009.10795},
-    year={2020}
-}
-```
-This repository can be used to build Data Maps, like [this one for SNLI using a RoBERTa-Large classifier](./sample/SNLI_RoBERTa.pdf).
-![SNLI Data Map with RoBERTa-Large](./sample/SNLI_RoBERTa.png)
-
-### Pre-requisites
-
-This repository is based on the [HuggingFace Transformers](https://github.com/huggingface/transformers) library.
-<!-- Hyperparameter tuning is based on [HFTune](https://github.com/allenai/hftune). -->
-
-
-### Train GLUE-style model and compute training dynamics
-
-To train a GLUE-style model using this repository:
+First, we initialize our training set `train.tsv` to randomly selected 10% of the full MNLI training data. Then we train a model on the training set while calculating training dynamics on `unlabeled.tsv`.
 
 ```
+MODEL_OUTPUT_DIR=output/mnli_al_0.1/0/
+
 python -m cartography.classification.run_glue \
-    -c configs/$TASK.jsonnet \
+    -c configs/mnli.jsonnet \
     --do_train \
-    --do_eval \
+    --train al_0.1/train.tsv \
+    --dev al_0.1/unlabeled.tsv \
     -o $MODEL_OUTPUT_DIR
 ```
-The best configurations for our experiments for each of the `$TASK`s (SNLI, MNLI, QNLI or WINOGRANDE) are provided under [configs](./configs).
 
-This produces a training dynamics directory `$MODEL_OUTPUT_DIR/training_dynamics`, see a sample [here](./sample/training_dynamics/).
+We consider setting `METRIC` to `mean_variance`, `final_confidence`, and `random`, which defines our selection strategy for choosing examples from `unlabeled.tsv`. Then, for each iteration, we run the following commands:
 
-*Note:* you can use any other set up to train your model (independent of this repository) as long as you produce the `dynamics_epoch_$X.jsonl` for plotting data maps, and filtering different regions of the data.
-The `.jsonl` file must contain the following fields for every training instance:
-- `guid` : instance ID matching that in the original data file, for filtering,
-- `logits_epoch_$X` : logits for the training instance under epoch `$X`,
-- `gold` : index of the gold label, must match the logits array.
-
-
-### Plot Data Maps
-
-To plot data maps for a trained `$MODEL` (e.g. RoBERTa-Large) on a given `$TASK` (e.g. SNLI, MNLI, QNLI or WINOGRANDE):
-
+1. Select the data according to the selection strategy. Since we set n to be 5% of the full MNLI training data, this is equivalent to `n=19635`.
 ```
-python -m cartography.selection.train_dy_filtering \
-    --plot \
-    --task_name $TASK \
-    --model_dir $PATH_TO_MODEL_OUTPUT_DIR_WITH_TRAINING_DYNAMICS \
-    --model $MODEL_NAME
-```
+TASK=MNLI
+MODEL_OUTPUT_DIR=output/mnli_al_0.1/$METRIC/$(($ITERATION-1))/
+DATA_DIR=data/glue/MNLI/al_0.1/
+DATA_OUTPUT_DIR=data/glue/MNLI/al_0.1/$METRIC/$ITERATION/
 
-
-### Data Selection
-
-To select (different amounts of) data based on various metrics from training dynamics:
-
-```
 python -m cartography.selection.train_dy_filtering \
     --filter \
+    --n 19635 \
     --task_name $TASK \
-    --model_dir $PATH_TO_MODEL_OUTPUT_DIR_WITH_TRAINING_DYNAMICS \
+    --model_dir $MODEL_OUTPUT_DIR \
     --metric $METRIC \
-    --data_dir $PATH_TO_GLUE_DIR_WITH_ORIGINAL_DATA_IN_TSV_FORMAT
+    --output_dir $DATA_OUTPUT_DIR \
+    --data_dir $DATA_DIR \
+    --data_file unlabeled.tsv \
+    --split 'dev'
 ```
 
-Supported `$TASK`s include SNLI, QNLI, MNLI and WINOGRANDE, and `$METRIC`s include `confidence`, `variability`, `correctness`, `forgetfulness` and `threshold_closeness`; see [paper](https://arxiv.org/abs/2009.10795) for more details.
+2. Concatenate the selected data with the training data from the previous iteration.
+```
+python -m cartography.selection.append_selected \
+    --metric $METRIC \
+    --it $ITERATION
+```
 
-To select _hard-to-learn_ instances, set `$METRIC` as "confidence" and for _ambiguous_, set `$METRIC` as "variability". For _easy-to-learn_ instances: set `$METRIC` as "confidence" and use the flag `--worst`. 
+3. Retrain a model on the augmented training data.
+```
+MODEL_OUTPUT_DIR=output/mnli_al_0.1/$METRIC/$ITERATION/
+
+python -m cartography.classification.run_glue \
+    -c configs/mnli.jsonnet \
+    --do_train \
+    --train al_0.1/$METRIC/$ITERATION/cartography_${METRIC}_19635/train.tsv \
+    --dev al_0.1/unlabeled.tsv \
+    -o $MODEL_OUTPUT_DIR
+```
+
+These commands can be chained together with a job scheduler like the slurm workload manager on `hyak`. You can run the entire experiment at once with
+
+```
+id=$(sbatch --parsable scripts/train.sh)
+
+for metric in random mean_variability final_confidence
+do
+    for iteration in 1 2 3 4
+    do 
+        id=$(sbatch --parsable --dependency=afterany:$id --export=METRIC=$metric,ITERATION=$iteration scripts/select_unlabeled_data.sh)
+        id=$(sbatch --parsable --dependency=afterany:$id --export=METRIC=$metric,ITERATION=$iteration scripts/combine_train_selected.sh)
+        id=$(sbatch --parsable --dependency=afterany:$id --export=METRIC=$metric,ITERATION=$iteration scripts/train_al.sh)
+    done
+done
+```
+
+where `select_unlabeled_data.sh`, `combine_train_selected.sh` and `scripts/train_al.sh` each contain the commands described above.
