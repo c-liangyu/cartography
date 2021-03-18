@@ -1,6 +1,85 @@
 # Reproducing Dataset Cartography
 
-### Active learning experiment
+### Training RoBERTa on MNLI
+The first step to reproducing the paper is to finetune RoBERTa-large on the full MNLI dataset and obtain the corresponding data map.
+
+```
+MODEL_OUTPUT_DIR=output/mnli
+
+python -m cartography.classification.run_glue \
+    -c configs/mnli.jsonnet \
+    --do_train \
+    --do_test \
+    --train train.tsv \
+    -o $MODEL_OUTPUT_DIR
+```
+
+Then we plot the data map!
+```
+python -m cartography.selection.train_dy_filtering \
+    --plot \
+    --task_name MNLI \
+    --model_dir $MODEL_OUTPUT_DIR \
+    --plot_title "MNLI Data Map"
+```
+
+### Result 1: Ambiguous examples improve out-of-domain generalization
+We compare the result of training on the full data with training on a random 33%, the most hard-to-learn 33%, and the most ambiguous 33% of training data. First, we select each subset of training data by running the following code with `METRIC` set to each of `random`, `confidence`, and `variability`.
+
+```
+TASK=MNLI
+MODEL_OUTPUT_DIR=output/mnli/
+DATA_DIR=data/glue/MNLI/
+DATA_OUTPUT_DIR=data/glue/MNLI/filtered/$METRIC/
+
+python -m cartography.selection.train_dy_filtering \
+    --filter \
+    --task_name $TASK \
+    --model_dir $MODEL_OUTPUT_DIR \
+    --metric $METRIC \
+    --output_dir $DATA_OUTPUT_DIR \
+    --data_dir $DATA_DIR
+```
+
+Then we train a new model on each of these subsets.
+
+```
+FRACTION=0.33
+MODEL_OUTPUT_DIR=output/mnli_ambiguous/ambiguous_$FRACTION
+
+python -m cartography.classification.run_glue \
+    -c configs/mnli.jsonnet \
+    --do_train \
+    --do_test \
+    --train filtered/ambiguous/cartography_variability_$FRACTION/train.tsv \
+    -o $MODEL_OUTPUT_DIR
+```
+
+### Result 2: Mixing in easy-to-learn examples
+
+We investigate how performance is affected as we vary the size of ambiguous and random subsets. To do this, we run the same scripts as in the previous section but with different values of `FRACTION` in `0.01`, `0.05`, `0.1`, `0.17`, `0.25`, `0.33`, `0.5`, and `0.75`.
+
+Then, we select the mixed data.
+
+```
+TASK=MNLI
+MODEL_OUTPUT_DIR=output/mnli/
+DATA_DIR=data/glue/MNLI/
+DATA_OUTPUT_DIR=data/glue/MNLI/filtered/mixed/
+METRIC=mixed
+
+python -m cartography.selection.train_dy_filtering \
+    --filter \
+    --task_name $TASK \
+    --model_dir $MODEL_OUTPUT_DIR \
+    --metric $METRIC \
+    --output_dir $DATA_OUTPUT_DIR \
+    --data_dir $DATA_DIR
+```
+
+And train models on the different ratios of mixed data in the same way as before.
+
+### Additional experiment: active learning
 
 First, we initialize our training set `train.tsv` to randomly selected 10% of the full MNLI training data. Then we train a model on the training set while calculating training dynamics on `unlabeled.tsv`.
 
@@ -71,4 +150,4 @@ do
 done
 ```
 
-where `select_unlabeled_data.sh`, `combine_train_selected.sh` and `scripts/train_al.sh` each contain the commands described above.
+where `scripts/select_unlabeled_data.sh`, `scripts/combine_train_selected.sh` and `scripts/train_al.sh` each contain the commands described above.
