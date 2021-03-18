@@ -1,0 +1,117 @@
+#!/bin/bash
+#SBATCH --job-name=train-mixed
+#SBATCH --partition=xlab-gpu
+#SBATCH --nodes=1
+#SBATCH --mem=64G
+#SBATCH --gres=gpu:1
+#SBATCH --time=20:00:00
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=alisaliu@uw.edu
+#SBATCH --output="slurm/train/slurm-%J-%x.out"
+
+cat $0
+echo "--------------------"
+
+MODEL_OUTPUT_DIR=output/mnli_mixed/mixed_$FRACTION
+
+python -m cartography.classification.run_glue \
+    -c configs/mnli.jsonnet \
+    --do_train \
+    --do_test \
+    --train filtered/mixed/cartography_mixed_$FRACTION/train.tsv \
+    -o $MODEL_OUTPUT_DIR
+--------------------
+2021-03-14 12:11:04,947 - WARNING - __main__ - Process rank: -1, device: cuda, n_gpu: 1, distributed training: False, 16-bits training: False
+2021-03-14 12:11:15,070 - INFO - transformers.configuration_utils - loading configuration file https://s3.amazonaws.com/models.huggingface.co/bert/roberta-large-config.json from cache at /usr/lusers/alisaliu/.cache/torch/transformers/c22e0b5bbb7c0cb93a87a2ae01263ae715b4c18d692b1740ce72cacaa99ad184.2d28da311092e99a05f9ee17520204614d60b0bfdb32f8a75644df7737b6a748
+2021-03-14 12:11:15,071 - INFO - transformers.configuration_utils - Model config RobertaConfig {
+  "architectures": [
+    "RobertaForMaskedLM"
+  ],
+  "attention_probs_dropout_prob": 0.1,
+  "bos_token_id": 0,
+  "do_sample": false,
+  "eos_token_id": 2,
+  "eos_token_ids": null,
+  "finetuning_task": "mnli",
+  "hidden_act": "gelu",
+  "hidden_dropout_prob": 0.1,
+  "hidden_size": 1024,
+  "id2label": {
+    "0": "LABEL_0",
+    "1": "LABEL_1"
+  },
+  "initializer_range": 0.02,
+  "intermediate_size": 4096,
+  "is_decoder": false,
+  "label2id": {
+    "LABEL_0": 0,
+    "LABEL_1": 1
+  },
+  "layer_norm_eps": 1e-05,
+  "length_penalty": 1.0,
+  "max_length": 20,
+  "max_position_embeddings": 514,
+  "model_type": "roberta",
+  "num_attention_heads": 16,
+  "num_beams": 1,
+  "num_hidden_layers": 24,
+  "num_labels": 3,
+  "num_return_sequences": 1,
+  "output_attentions": false,
+  "output_hidden_states": false,
+  "output_past": true,
+  "pad_token_id": 1,
+  "pruned_heads": {},
+  "repetition_penalty": 1.0,
+  "temperature": 1.0,
+  "top_k": 50,
+  "top_p": 1.0,
+  "torchscript": false,
+  "type_vocab_size": 1,
+  "use_bfloat16": false,
+  "vocab_size": 50265
+}
+
+2021-03-14 12:11:35,123 - INFO - transformers.tokenization_utils - loading file https://s3.amazonaws.com/models.huggingface.co/bert/roberta-large-vocab.json from cache at /usr/lusers/alisaliu/.cache/torch/transformers/1ae1f5b6e2b22b25ccc04c000bb79ca847aa226d0761536b011cf7e5868f0655.ef00af9e673c7160b4d41cfda1f48c5f4cba57d5142754525572a846a1ab1b9b
+2021-03-14 12:11:35,123 - INFO - transformers.tokenization_utils - loading file https://s3.amazonaws.com/models.huggingface.co/bert/roberta-large-merges.txt from cache at /usr/lusers/alisaliu/.cache/torch/transformers/f8f83199a6270d582d6245dc100e99c4155de81c9745c6248077018fe01abcfb.70bec105b4158ed9a1747fea67a43f5dee97855c64d62b6ec3742f4cfdb5feda
+2021-03-14 12:11:45,302 - INFO - transformers.modeling_utils - loading weights file https://s3.amazonaws.com/models.huggingface.co/bert/roberta-large-pytorch_model.bin from cache at /usr/lusers/alisaliu/.cache/torch/transformers/195c00f28dc68ef13a307c6db84d566f801f03b2b6bcf8b29524f10f767fac2a.fc7abf72755ecc4a75d0d336a93c1c63358d2334f5998ed326f3b0da380bf536
+2021-03-14 12:11:56,064 - INFO - transformers.modeling_utils - Weights of AdaptedRobertaForSequenceClassification not initialized from pretrained model: ['classifier.dense.weight', 'classifier.dense.bias', 'classifier.out_proj.weight', 'classifier.out_proj.bias']
+2021-03-14 12:11:56,065 - INFO - transformers.modeling_utils - Weights from pretrained model not used in AdaptedRobertaForSequenceClassification: ['lm_head.bias', 'lm_head.dense.weight', 'lm_head.dense.bias', 'lm_head.layer_norm.weight', 'lm_head.layer_norm.bias', 'lm_head.decoder.weight']
+2021-03-14 12:12:19,102 - INFO - __main__ - Training/evaluation parameters <cartography.classification.params.Params object at 0x2acbee1a6f10>
+2021-03-14 12:12:19,118 - INFO - __main__ - Creating features from dataset file at /gscratch/xlab/alisaliu/cartography/data/glue/MNLI/
+2021-03-14 12:12:19,488 - INFO - cartography.classification.glue_utils - Writing example 0/19637
+2021-03-14 12:12:22,829 - INFO - cartography.classification.glue_utils - Writing example 10000/19637
+2021-03-14 12:12:25,667 - INFO - __main__ - Saving features into cached file /gscratch/xlab/alisaliu/cartography/data/glue/MNLI/filtered/mixed/cartography_mixed_0.33/cache_20/cached_train_roberta-large_128_mnli
+Traceback (most recent call last):
+  File "/gscratch/cse/alisaliu/miniconda3/envs/cartography/lib/python3.9/site-packages/tensorboardX/record_writer.py", line 47, in directory_check
+    factory = REGISTERED_FACTORIES[prefix]
+KeyError: 'runs/Mar14_12-12-27_n2550.hyak.local'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/gscratch/cse/alisaliu/miniconda3/envs/cartography/lib/python3.9/runpy.py", line 197, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "/gscratch/cse/alisaliu/miniconda3/envs/cartography/lib/python3.9/runpy.py", line 87, in _run_code
+    exec(code, run_globals)
+  File "/gscratch/xlab/alisaliu/cartography/cartography/classification/run_glue.py", line 859, in <module>
+    main()
+  File "/gscratch/xlab/alisaliu/cartography/cartography/classification/run_glue.py", line 855, in main
+    run_transformer(args)
+  File "/gscratch/xlab/alisaliu/cartography/cartography/classification/run_glue.py", line 749, in run_transformer
+    global_step, tr_loss = train(args, train_dataset, model, tokenizer)
+  File "/gscratch/xlab/alisaliu/cartography/cartography/classification/run_glue.py", line 101, in train
+    tb_writer = SummaryWriter()
+  File "/gscratch/cse/alisaliu/miniconda3/envs/cartography/lib/python3.9/site-packages/tensorboardX/writer.py", line 275, in __init__
+    self._get_file_writer()
+  File "/gscratch/cse/alisaliu/miniconda3/envs/cartography/lib/python3.9/site-packages/tensorboardX/writer.py", line 323, in _get_file_writer
+    self.file_writer = FileWriter(logdir=self.logdir,
+  File "/gscratch/cse/alisaliu/miniconda3/envs/cartography/lib/python3.9/site-packages/tensorboardX/writer.py", line 94, in __init__
+    self.event_writer = EventFileWriter(
+  File "/gscratch/cse/alisaliu/miniconda3/envs/cartography/lib/python3.9/site-packages/tensorboardX/event_file_writer.py", line 104, in __init__
+    directory_check(self._logdir)
+  File "/gscratch/cse/alisaliu/miniconda3/envs/cartography/lib/python3.9/site-packages/tensorboardX/record_writer.py", line 51, in directory_check
+    os.makedirs(path)
+  File "/gscratch/cse/alisaliu/miniconda3/envs/cartography/lib/python3.9/os.py", line 225, in makedirs
+    mkdir(name, mode)
+FileExistsError: [Errno 17] File exists: 'runs/Mar14_12-12-27_n2550.hyak.local'
