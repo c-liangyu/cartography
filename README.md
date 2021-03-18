@@ -1,10 +1,7 @@
 # Reproducing Dataset Cartography
 
-### Main Results
 
-![Datamap](MNLI.png)
 
-![Table](Table.png)
 
 ### Training RoBERTa on MNLI
 The first step to reproducing the paper is to finetune RoBERTa-large on the full MNLI dataset and obtain the corresponding data map.
@@ -28,6 +25,9 @@ python -m cartography.selection.train_dy_filtering \
     --model_dir $MODEL_OUTPUT_DIR \
     --plot_title "MNLI Data Map"
 ```
+
+![Datamap](MNLI.png)
+
 
 ### Result 1: Ambiguous examples improve out-of-domain generalization
 We compare the result of training on the full data with training on a random 33%, the most hard-to-learn 33%, and the most ambiguous 33% of training data. First, we select each subset of training data by running the following code with `METRIC` set to each of `random`, `confidence`, and `variability`.
@@ -60,6 +60,9 @@ python -m cartography.classification.run_glue \
     --train filtered/ambiguous/cartography_variability_$FRACTION/train.tsv \
     -o $MODEL_OUTPUT_DIR
 ```
+
+![Table](Table.png)
+
 
 ### Result 2: Mixing in easy-to-learn examples
 
