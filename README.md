@@ -1,5 +1,11 @@
 # Reproducing Dataset Cartography
 
+### Quick plot PathMNIST
+```
+bash scripts/plot.sh
+```
+### Get Started
+
 Create the conda environment with
 
 ```
