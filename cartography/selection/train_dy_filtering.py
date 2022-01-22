@@ -331,14 +331,15 @@ def plot_data_map(dataframe: pd.DataFrame,
     # Normalize correctness to a value between 0 and 1.
     dataframe = dataframe.assign(
         corr_frac=lambda d: d.correctness / d.correctness.max())
-    dataframe['correct.'] = [f"{x:.1f}" for x in dataframe['corr_frac']]
+    dataframe['correct.'] = [round(x, 1) for x in dataframe['corr_frac']]
 
     main_metric = 'variability'
     other_metric = 'confidence'
 
     hue = hue_metric
     num_hues = len(dataframe[hue].unique().tolist())
-    style = hue_metric if num_hues < 8 else None
+    # style = hue_metric if num_hues < 8 else None
+    style = None
 
     if not show_hist:
         fig, ax0 = plt.subplots(1, 1, figsize=(8, 6))
@@ -347,7 +348,7 @@ def plot_data_map(dataframe: pd.DataFrame,
         gs = fig.add_gridspec(3, 2, width_ratios=[5, 1])
         ax0 = fig.add_subplot(gs[:, 0])
 
-    pal = sns.diverging_palette(260, 15, n=num_hues, sep=10, center="dark")
+    pal = sns.color_palette("Reds_r", n_colors=num_hues)
 
     plot = sns.scatterplot(x=main_metric,
                            y=other_metric,
@@ -370,27 +371,33 @@ def plot_data_map(dataframe: pd.DataFrame,
                                                            ha="center",
                                                            rotation=350,
                                                            bbox=bb(bbc))
-    an1 = func_annotate("ambiguous", xyc=(0.9, 0.5), bbc='black')
-    an2 = func_annotate("easy-to-learn", xyc=(0.27, 0.85), bbc='r')
-    an3 = func_annotate("hard-to-learn", xyc=(0.35, 0.25), bbc='b')
+    an1 = func_annotate("ambiguous", xyc=(0.9, 0.5), bbc='white')
+    an2 = func_annotate("easy-to-learn", xyc=(0.27, 0.85), bbc='white')
+    an3 = func_annotate("hard-to-learn", xyc=(0.35, 0.25), bbc='white')
     if show_bound:
         def bound(conf):
             return math.sqrt(math.floor(5*conf)/5.0 + (math.floor(5*conf) - 5*conf)**2/5.0 - conf**2)
-        confs = list(np.arange(0, 1, 0.01))    
+        confs = list(np.arange(0, 1, 0.01))
         plt.plot([bound(conf) for conf in confs], confs, linewidth=2.0, label='x=f(y, 5)', color='black')
 
     if not show_hist:
-        plot.legend(ncol=1, bbox_to_anchor=[0.175, 0.5], loc='right')
+        handles, labels = plot.get_legend_handles_labels()
+        plot.legend(reversed(handles), reversed(labels), title='correctness', fancybox=True, shadow=True,  ncol=1,
+                    # loc='center left'
+                    bbox_to_anchor=(1.01, 1),
+                    )
+
     else:
-        plot.legend(fancybox=True, shadow=True,  ncol=1)
+        handles, labels = plot.get_legend_handles_labels()
+        plot.legend(reversed(handles), reversed(labels), title='correctness', fancybox=True, shadow=True,  ncol=1)
     plot.set_xlabel('variability')
     plot.set_ylabel('confidence')
 
-    if show_hist:
-        if not plot_title:
-            plot_title = f"{task_name} Data Map"
-        plot.set_title(plot_title, fontsize=17)
+    if not plot_title:
+        plot_title = f"{task_name} Data Map"
+    plot.set_title(plot_title, fontsize=17)
 
+    if show_hist:
         # Make the histograms.
         ax1 = fig.add_subplot(gs[0, 1])
         ax2 = fig.add_subplot(gs[1, 1])
@@ -413,11 +420,13 @@ def plot_data_map(dataframe: pd.DataFrame,
         plot2.set_title('')
         plot2.set_xlabel('correctness')
         plot2.set_ylabel('density')
+        plot2.tick_params(axis='x', rotation=60)
 
     fig.tight_layout()
-    filename = f'{plot_dir}/{task_name}.png' if show_hist else f'figures/compact_{task_name}.png'
+    filename = f'{plot_dir}/{task_name}.png' if show_hist else f'{plot_dir}/compact_{task_name}.png'
     fig.savefig(filename, dpi=300)
     logger.info(f"Plot saved to {filename}")
+    fig.show()
 
 
 if __name__ == "__main__":
@@ -453,7 +462,7 @@ if __name__ == "__main__":
     parser.add_argument("--task_name",
                         "-t",
                         default="WINOGRANDE",
-                        choices=("SNLI", "MNLI", "QNLI", "WINOGRANDE"),
+                        choices=("SNLI", "MNLI", "QNLI", "WINOGRANDE", "CIFAR10", "PathMNIST"),
                         help="Which task are we plotting or filtering for.")
     parser.add_argument('--metric',
                         choices=('threshold_closeness',
@@ -531,4 +540,5 @@ if __name__ == "__main__":
         if not os.path.exists(args.plots_dir):
             os.makedirs(args.plots_dir)
         plot_data_map(train_dy_metrics, args.plots_dir, task_name=args.task_name,
-                      show_hist=True, plot_title=args.plot_title, show_bound = args.bound)
+                      # show_hist=True,
+                      plot_title=args.plot_title, show_bound=args.bound)

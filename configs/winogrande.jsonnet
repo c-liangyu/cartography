@@ -6,10 +6,10 @@ local NUM_EPOCHS = 6;
 local SEED = 71789;
 
 local TASK = "winogrande";
-local DATA_DIR = "/local1/alisaliu/cartography/data/glue/winogrande/xl/";
+local DATA_DIR = "/media/ntu/volume2/home/s121md302_06/data/GLUE-baselines/glue_data/winogrande/xl/";
 local FEATURES_CACHE_DIR = DATA_DIR + "cache_" + SEED;
 
-local TEST = "/local1/alisaliu/cartography/data/glue/winogrande/wsc_superglue_trval_test.tsv";
+local TEST = "/media/ntu/volume2/home/s121md302_06/data/GLUE-baselines/glue_data/winogrande/wsc_superglue_trval_test.tsv";
 
 {
    "data_dir": DATA_DIR,

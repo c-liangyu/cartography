@@ -6,7 +6,7 @@ local NUM_EPOCHS = 5;
 local SEED = 36891;
 
 local TASK = "MNLI";
-local DATA_DIR = "/local1/alisaliu/cartography/data/glue/" + TASK;
+local DATA_DIR = "/media/ntu/volume2/home/s121md302_06/data/GLUE-baselines/glue_data/" + TASK;
 local FEATURES_CACHE_DIR = DATA_DIR + "/cache_" + SEED ;
 
 {
