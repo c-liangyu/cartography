@@ -324,14 +324,21 @@ def plot_data_map(dataframe: pd.DataFrame,
     sns.set(style='whitegrid', font_scale=1.6, context='paper')
     logger.info(f"Plotting figure for {task_name} ...")
 
-    # Subsample data to plot, so the plot is not too busy.
-    dataframe = dataframe.sample(
-        n=max_instances_to_plot if dataframe.shape[0] > max_instances_to_plot else len(dataframe))
-
     # Normalize correctness to a value between 0 and 1.
     dataframe = dataframe.assign(
         corr_frac=lambda d: d.correctness / d.correctness.max())
     dataframe['correct.'] = [round(x, 1) for x in dataframe['corr_frac']]
+
+    np.save(os.path.join(plot_dir, 'ambiguous_sorted_idx.npy'),
+            dataframe.sort_values('variability', ascending=False)['guid'])
+    np.save(os.path.join(plot_dir, 'easy_sorted_idx.npy'),
+            dataframe.sort_values('confidence', ascending=False)['guid'])
+    np.save(os.path.join(plot_dir, 'hard_sorted_idx.npy'),
+            dataframe.sort_values('variability')['guid'])
+
+    # Subsample data to plot, so the plot is not too busy.
+    dataframe = dataframe.sample(
+        n=max_instances_to_plot if dataframe.shape[0] > max_instances_to_plot else len(dataframe))
 
     main_metric = 'variability'
     other_metric = 'confidence'
